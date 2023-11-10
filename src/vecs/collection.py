@@ -718,8 +718,17 @@ class Collection:
         if ops is None:
             raise ArgError("Unknown index measure")
 
+        idx_name = f"ix_{self.table.name}"
+        if len(idx_name) > 63:
+            idx_name = idx_name[:63]
+
         with self.client.Session() as sess:
             with sess.begin():
+                if replace:
+                    sess.execute(text(f'drop index vecs."{idx_name}";'))
+                    self._index = None
+                else:
+                    raise ArgError("replace is set to False but an index exists")
                 if method == IndexMethod.ivfflat:
                     if not index_arguments:
                         n_records: int = sess.execute(func.count(self.table.c.id)).scalar()  # type: ignore
@@ -737,14 +746,6 @@ class Collection:
                         # parameter, however we have validated that the
                         # correct type is being used above.
                         n_lists = index_arguments.n_lists  # type: ignore
-
-                    idx_name = f"ix_{self.table.name}_{ops}_ivfflat_nl{n_lists}"
-                    if replace:
-                        sess.execute(text(f'drop index vecs."{idx_name}";'))
-                        self._index = None
-                    else:
-                        raise ArgError("replace is set to False but an index exists")
-
                     sess.execute(
                         text(
                             f"""
@@ -763,13 +764,6 @@ class Collection:
                     # are ignored
                     m = index_arguments.m  # type: ignore
                     ef_construction = index_arguments.ef_construction  # type: ignore
-                    idx_name = f"ix_{self.table.name}_{ops}_hnsw_m{m}_efc{ef_construction}"
-
-                    if replace:
-                        sess.execute(text(f'drop index vecs."{idx_name}";'))
-                        self._index = None
-                    else:
-                        raise ArgError("replace is set to False but an index exists")
 
                     sess.execute(
                         text(
