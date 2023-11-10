@@ -260,8 +260,22 @@ class Collection:
 
         if not collection_dimension:
             self.table.create(self.client.engine)
+            self._create_metadata_idx()
 
         return self
+
+    def _create_metadata_idx(self):
+        unique_string = str(uuid.uuid4()).replace("-", "_")[0:7]
+        with self.client.Session() as sess:
+            sess.execute(
+                text(
+                    f"""
+                    create index ix_meta_{unique_string}
+                      on vecs."{self.table.name}"
+                      using gin (metadata jsonb_path_ops)
+                    """
+                )
+            )
 
     def _create(self):
         """
@@ -282,18 +296,7 @@ class Collection:
                 "Collection with requested name already exists"
             )
         self.table.create(self.client.engine)
-
-        unique_string = str(uuid.uuid4()).replace("-", "_")[0:7]
-        with self.client.Session() as sess:
-            sess.execute(
-                text(
-                    f"""
-                    create index ix_meta_{unique_string}
-                      on vecs."{self.table.name}"
-                      using gin ( metadata jsonb_path_ops )
-                    """
-                )
-            )
+        self._create_metadata_idx()
         return self
 
     def _drop(self):
@@ -661,25 +664,6 @@ class Collection:
     ) -> None:
         """
         Creates an index for the collection.
-
-        Note:
-            When `vecs` creates an index on a pgvector column in PostgreSQL, it uses a multi-step
-            process that enables performant indexes to be built for large collections with low end
-            database hardware.
-
-            Those steps are:
-
-            - Creates a new table with a different name
-            - Randomly selects records from the existing table
-            - Inserts the random records from the existing table into the new table
-            - Creates the requested vector index on the new table
-            - Upserts all data from the existing table into the new table
-            - Drops the existing table
-            - Renames the new table to the existing tables name
-
-            If you create dependencies (like views) on the table that underpins
-            a `vecs.Collection` the `create_index` step may require you to drop those dependencies before
-            it will succeed.
 
         Args:
             measure (IndexMeasure, optional): The measure to index for. Defaults to 'cosine_distance'.
