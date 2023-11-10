@@ -99,10 +99,7 @@ class Client:
             pipeline (int): The dimensionality of the vectors in the collection.
 
         Returns:
-            Collection: The created collection.
-
-        Raises:
-            CollectionAlreadyExists: If a collection with the same name already exists
+            Collection: The found or created collection.
         """
         from vecs.collection import Collection
 

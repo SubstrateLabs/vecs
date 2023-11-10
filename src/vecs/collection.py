@@ -176,6 +176,7 @@ class Collection:
         self.dimension = dimension
         self.table = build_table(name, client.meta, dimension)
         self._index: Optional[str] = None
+        self.just_created = False
         self.adapter = adapter or Adapter(steps=[NoOp(dimension=dimension)])
 
         reported_dimensions = set(
@@ -261,6 +262,7 @@ class Collection:
         if not collection_dimension:
             self.table.create(self.client.engine)
             self._create_metadata_idx()
+            self.just_created = True
 
         return self
 
@@ -296,6 +298,7 @@ class Collection:
                 "Collection with requested name already exists"
             )
         self.table.create(self.client.engine)
+        self.just_created = True
         self._create_metadata_idx()
         return self
 
