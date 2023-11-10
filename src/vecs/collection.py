@@ -617,6 +617,7 @@ class Collection:
         """
 
         if self._index is None:
+            prefix = f"ix_{self.table.name}_%"
             query = text(
                 """
             select
@@ -625,12 +626,12 @@ class Collection:
                 pg_class pc
             where
                 pc.relnamespace = 'vecs'::regnamespace
-                and relname ilike 'ix_vector%'
+                and relname ilike :prefix
                 and pc.relkind = 'i'
             """
             )
             with self.client.Session() as sess:
-                ix_name = sess.execute(query).scalar()
+                ix_name = sess.execute(query.bindparams(prefix=prefix)).scalar()
             self._index = ix_name
         return self._index
 
@@ -663,7 +664,7 @@ class Collection:
         measure: IndexMeasure = IndexMeasure.cosine_distance,
         method: IndexMethod = IndexMethod.auto,
         index_arguments: Optional[Union[IndexArgsIVFFlat, IndexArgsHNSW]] = None,
-        replace=True,
+        replace: bool = True,
     ) -> None:
         """
         Creates an index for the collection.
@@ -717,17 +718,8 @@ class Collection:
         if ops is None:
             raise ArgError("Unknown index measure")
 
-        unique_string = str(uuid.uuid4()).replace("-", "_")[0:7]
-
         with self.client.Session() as sess:
             with sess.begin():
-                if self.index is not None:
-                    if replace:
-                        sess.execute(text(f'drop index vecs."{self.index}";'))
-                        self._index = None
-                    else:
-                        raise ArgError("replace is set to False but an index exists")
-
                 if method == IndexMethod.ivfflat:
                     if not index_arguments:
                         n_records: int = sess.execute(func.count(self.table.c.id)).scalar()  # type: ignore
@@ -746,10 +738,17 @@ class Collection:
                         # correct type is being used above.
                         n_lists = index_arguments.n_lists  # type: ignore
 
+                    idx_name = f"ix_{self.table.name}_{ops}_ivfflat_nl{n_lists}"
+                    if replace:
+                        sess.execute(text(f'drop index vecs."{idx_name}";'))
+                        self._index = None
+                    else:
+                        raise ArgError("replace is set to False but an index exists")
+
                     sess.execute(
                         text(
                             f"""
-                            create index ix_{ops}_ivfflat_nl{n_lists}_{unique_string}
+                            create index {idx_name}
                               on vecs."{self.table.name}"
                               using ivfflat (vec {ops}) with (lists={n_lists})
                             """
@@ -764,11 +763,18 @@ class Collection:
                     # are ignored
                     m = index_arguments.m  # type: ignore
                     ef_construction = index_arguments.ef_construction  # type: ignore
+                    idx_name = f"ix_{self.table.name}_{ops}_hnsw_m{m}_efc{ef_construction}"
+
+                    if replace:
+                        sess.execute(text(f'drop index vecs."{idx_name}";'))
+                        self._index = None
+                    else:
+                        raise ArgError("replace is set to False but an index exists")
 
                     sess.execute(
                         text(
                             f"""
-                            create index ix_{ops}_hnsw_m{m}_efc{ef_construction}_{unique_string}
+                            create index {idx_name}
                               on vecs."{self.table.name}"
                               using hnsw (vec {ops}) WITH (m={m}, ef_construction={ef_construction});
                             """
