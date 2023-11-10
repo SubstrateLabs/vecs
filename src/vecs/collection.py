@@ -725,8 +725,9 @@ class Collection:
         with self.client.Session() as sess:
             with sess.begin():
                 if replace:
-                    sess.execute(text(f'drop index vecs."{idx_name}";'))
-                    self._index = None
+                    if self.index:
+                        sess.execute(text(f'drop index vecs."{self.index}";'))
+                        self._index = None
                 else:
                     raise ArgError("replace is set to False but an index exists")
                 if method == IndexMethod.ivfflat:
