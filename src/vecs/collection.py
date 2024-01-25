@@ -534,11 +534,13 @@ class Collection:
                     text("set local ivfflat.probes = :probes").bindparams(probes=probes)
                 )
                 if self.client._supports_hnsw():
+                    print('setting ef_search')
                     sess.execute(
                         text("set local hnsw.ef_search = :ef_search").bindparams(
                             ef_search=ef_search
                         )
                     )
+                print(f"Executing query: {stmt}")
                 if len(cols) == 1:
                     return [str(x) for x in sess.scalars(stmt).fetchall()]
                 return sess.execute(stmt).fetchall() or []
